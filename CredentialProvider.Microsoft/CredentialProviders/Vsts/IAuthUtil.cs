@@ -3,6 +3,7 @@
 // Licensed under the MIT license.
 
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -44,7 +45,6 @@ namespace NuGetCredentialProvider.CredentialProviders.Vsts
 
             var headers = await GetResponseHeadersAsync(uri, cancellationToken);
             var bearerHeaders = headers.WwwAuthenticate.Where(x => x.Scheme.Equals("Bearer", StringComparison.Ordinal));
-
             foreach (var param in bearerHeaders)
             {
                 if (param.Parameter == null)
@@ -75,20 +75,23 @@ namespace NuGetCredentialProvider.CredentialProviders.Vsts
 
         public async Task<bool> IsVstsUriAsync(Uri uri)
         {
-            if (!IsValidScheme(uri))
-            {
-                // We are not talking to a https endpoint so it cannot be a VSTS endpoint
-                return false;
-            }
-
             var responseHeaders = await GetResponseHeadersAsync(uri, cancellationToken: default);
-
             return responseHeaders.Contains(VssResourceTenant) && responseHeaders.Contains(VssAuthorizationEndpoint);
         }
 
         public async Task<Uri> GetAuthorizationEndpoint(Uri uri, CancellationToken cancellationToken)
         {
-            var headers = await GetResponseHeadersAsync(uri, cancellationToken);
+            Debugger.Break();
+            HttpResponseHeaders headers;
+            try
+            { 
+                headers = await GetResponseHeadersAsync(uri, cancellationToken);
+            }
+            catch(Exception e)
+            {
+                logger.Error("Errror!!!" + e.Message);
+                throw e;
+            }
 
             try
             {
@@ -122,10 +125,19 @@ namespace NuGetCredentialProvider.CredentialProviders.Vsts
 
 
                 logger.Verbose($"GET {uri}");
-                using (var response = await httpClient.SendAsync(request, cancellationToken))
+                try
                 {
-                    return response.Headers;
+                    using (var response = await httpClient.SendAsync(request, cancellationToken))
+                    {
+                        return response.Headers;
+                    }
                 }
+                catch (Exception e)
+                {
+                    logger.Error("Errror!!!" + e.Message);
+                    throw e;
+                }
+                
             }
         }
 
